@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
+using WebApplication1.Models;
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -21,7 +22,7 @@ namespace WebApplication1.Controllers
             try { 
                 using (var connection = new SqlConnection(connectionString)) { 
                     connection.Open();
-                    string sql = "SELECT Profiles.ProfileID,Profiles.ProfileName,Profiles.Bio,Profiles.[Location],Activities.ActivityName FROM CW2.[Users] JOIN CW2.[Profiles] ON Users.UserID = Profiles.UserID JOIN CW2.[FavouriteActivities] ON Profiles.ProfileID = FavouriteActivities.ProfileID JOIN CW2.[Activities] ON FavouriteActivities.ActivityID = Activities.ActivityID WHERE Profiles.IsArchived = 0 ORDER by ProfileID;";
+                    string sql = "SELECT Profiles.ProfileID,Profiles.ProfileName,Profiles.Bio,Profiles.[Location],Activities.ActivityName FROM CW2.[Users] JOIN CW2.[Profiles] ON Users.UserID = Profiles.UserID JOIN CW2.[FavouriteActivities] ON Profiles.ProfileID = FavouriteActivities.ProfileID JOIN CW2.[Activities] ON FavouriteActivities.ActivityID = Activities.ActivityID WHERE Profiles.IsArchived = 0 AND Profiles.PendingDeletion = 0 ORDER by ProfileID;";
                     using (var command = new SqlCommand(sql, connection)) { 
                         using (var reader = command.ExecuteReader()) {
                             while (reader.Read()) { 
@@ -52,7 +53,7 @@ namespace WebApplication1.Controllers
             try { 
                 using (var connection = new SqlConnection(connectionString)) { 
                     connection.Open();
-                    string sql = "SELECT Profiles.ProfileID,Profiles.ProfileName,Profiles.Bio,Profiles.[Location],\r\nActivities.ActivityName\r\nFROM CW2.[Users]\r\nJOIN CW2.[Profiles] ON Users.UserID = Profiles.UserID\r\nJOIN CW2.[FavouriteActivities] ON Profiles.ProfileID =\r\nFavouriteActivities.ProfileID\r\nJOIN CW2.[Activities] ON FavouriteActivities.ActivityID =\r\nActivities.ActivityID\r\nWHERE Profiles.IsArchived = 0 AND Profiles.ProfileID ="+id+";";
+                    string sql = "SELECT Profiles.ProfileID,Profiles.ProfileName,Profiles.Bio,Profiles.[Location],\r\nActivities.ActivityName\r\nFROM CW2.[Users]\r\nJOIN CW2.[Profiles] ON Users.UserID = Profiles.UserID\r\nJOIN CW2.[FavouriteActivities] ON Profiles.ProfileID =\r\nFavouriteActivities.ProfileID\r\nJOIN CW2.[Activities] ON FavouriteActivities.ActivityID =\r\nActivities.ActivityID\r\nWHERE Profiles.IsArchived = 0 AND Profiles.PendingDeletion = 0 AND Profiles.ProfileID ="+id+" ;";
                     using (var command = new SqlCommand(sql, connection)) { 
                         using (var reader = command.ExecuteReader()) {
                             while (reader.Read()) { 
@@ -102,21 +103,53 @@ namespace WebApplication1.Controllers
 
         // PUT api/<ProfilesController>/5
         [HttpPut("{id}")]
-        public void Put(int id, [FromBody] string value)
+        public IActionResult EditProfile(int id, Models.ProfileDTO profileDTO)
         {
+            try { 
+                using (var connection = new SqlConnection(connectionString)) { 
+                   connection.Open();
+                   string sql = "EXEC CW2.UpdateProfile "+id+",@ProfileName, @Bio, @Location  \r\n EXEC CW2.UpdateFavouriteActivity @ActivityID, "+id+";";
+                    using(var command = new SqlCommand(sql, connection)) { 
+                        command.Parameters.AddWithValue("@ProfileName",profileDTO.ProfileName);
+                        command.Parameters.AddWithValue("@Bio",profileDTO.Bio);
+                        command.Parameters.AddWithValue("@Location",profileDTO.Location);
+                        command.Parameters.AddWithValue("@ActivityID",profileDTO.FavouriteActivity);
+                        command.ExecuteNonQuery();
+                    }
+                }
+            }
+            catch (Exception ex){ 
+                ModelState.AddModelError("Profiles","Sorry, this is not available right now");
+                return BadRequest(ModelState);
+            }
+            return Ok();
         }
 
         // DELETE api/<ProfilesController>/5
         [HttpDelete("{id}")]
-        public void Delete(int id)
+        public IActionResult DeleteProfile(int id)
         {
+            try { 
+                using (var connection = new SqlConnection(connectionString)) { 
+                   connection.Open();
+                   string sql = "EXEC CW2.DeleteProfile "+id+";";
+                    using(var command = new SqlCommand(sql, connection)) { 
+                        command.ExecuteNonQuery();
+                    }
+                }
+            }
+            catch (Exception ex){ 
+                ModelState.AddModelError("Profiles","Sorry, this is not available right now");
+                return BadRequest(ModelState);
+            }
+            return Ok();
         }
 
         protected string getProfileId() { 
             int count = 0;
             using (var connection = new SqlConnection(connectionString)) { 
                 connection.Open();
-                string sql = "SELECT Profiles.ProfileID,Profiles.ProfileName,Profiles.Bio,Profiles.[Location],Activities.ActivityName FROM CW2.[Users] JOIN CW2.[Profiles] ON Users.UserID = Profiles.UserID JOIN CW2.[FavouriteActivities] ON Profiles.ProfileID = FavouriteActivities.ProfileID JOIN CW2.[Activities] ON FavouriteActivities.ActivityID = Activities.ActivityID WHERE Profiles.IsArchived = 0 ORDER by ProfileID;";
+                string sql = "SELECT Profiles.ProfileID,Profiles.ProfileName,Profiles.Bio,Profiles.[Location],Activities.ActivityName FROM CW2.[Users] JOIN CW2.[Profiles] ON Users.UserID = Profiles.UserID JOIN CW2.[FavouriteActivities] ON Profiles.ProfileID = FavouriteActivities.ProfileID JOIN CW2.[Activities] ON FavouriteActivities.ActivityID = Activities.ActivityID ORDER by ProfileID;";
                 using (var command = new SqlCommand(sql, connection)) { 
                     using (var reader = command.ExecuteReader()) {
                         while (reader.Read()) { 
