@@ -12,5 +12,8 @@ namespace WebApplication1.Models
         
         [Required]
         public string Location { get; set; } = "";
+
+        [Required]
+        public int FavouriteActivity { get; set; }
     }
 }

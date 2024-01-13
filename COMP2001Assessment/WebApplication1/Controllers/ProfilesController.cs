@@ -21,7 +21,7 @@ namespace WebApplication1.Controllers
             try { 
                 using (var connection = new SqlConnection(connectionString)) { 
                     connection.Open();
-                    string sql = "SELECT Profiles.ProfileID,Profiles.ProfileName,Profiles.Bio,Profiles.[Location],Activities.ActivityName FROM CW1.[Users] JOIN CW1.[Profiles] ON Users.UserID = Profiles.UserID JOIN CW1.[FavouriteActivities] ON Profiles.ProfileID = FavouriteActivities.ProfileID JOIN CW1.[Activities] ON FavouriteActivities.ActivityID = Activities.ActivityID WHERE Profiles.IsArchived = 0 ORDER by ProfileID;";
+                    string sql = "SELECT Profiles.ProfileID,Profiles.ProfileName,Profiles.Bio,Profiles.[Location],Activities.ActivityName FROM CW2.[Users] JOIN CW2.[Profiles] ON Users.UserID = Profiles.UserID JOIN CW2.[FavouriteActivities] ON Profiles.ProfileID = FavouriteActivities.ProfileID JOIN CW2.[Activities] ON FavouriteActivities.ActivityID = Activities.ActivityID WHERE Profiles.IsArchived = 0 ORDER by ProfileID;";
                     using (var command = new SqlCommand(sql, connection)) { 
                         using (var reader = command.ExecuteReader()) {
                             while (reader.Read()) { 
@@ -52,7 +52,7 @@ namespace WebApplication1.Controllers
             try { 
                 using (var connection = new SqlConnection(connectionString)) { 
                     connection.Open();
-                    string sql = "SELECT Profiles.ProfileID,Profiles.ProfileName,Profiles.Bio,Profiles.[Location],\r\nActivities.ActivityName\r\nFROM CW1.[Users]\r\nJOIN CW1.[Profiles] ON Users.UserID = Profiles.UserID\r\nJOIN CW1.[FavouriteActivities] ON Profiles.ProfileID =\r\nFavouriteActivities.ProfileID\r\nJOIN CW1.[Activities] ON FavouriteActivities.ActivityID =\r\nActivities.ActivityID\r\nWHERE Profiles.IsArchived = 0 AND Profiles.ProfileID ="+id+";";
+                    string sql = "SELECT Profiles.ProfileID,Profiles.ProfileName,Profiles.Bio,Profiles.[Location],\r\nActivities.ActivityName\r\nFROM CW2.[Users]\r\nJOIN CW2.[Profiles] ON Users.UserID = Profiles.UserID\r\nJOIN CW2.[FavouriteActivities] ON Profiles.ProfileID =\r\nFavouriteActivities.ProfileID\r\nJOIN CW2.[Activities] ON FavouriteActivities.ActivityID =\r\nActivities.ActivityID\r\nWHERE Profiles.IsArchived = 0 AND Profiles.ProfileID ="+id+";";
                     using (var command = new SqlCommand(sql, connection)) { 
                         using (var reader = command.ExecuteReader()) {
                             while (reader.Read()) { 
@@ -79,18 +79,25 @@ namespace WebApplication1.Controllers
         [HttpPost]
         public IActionResult AddProfile(Models.ProfileDTO profileDTO)
         {
-            List<Models.Profiles> profiles = new List<Models.Profiles>();
+            string profileid = getProfileId();
             try { 
                 using (var connection = new SqlConnection(connectionString)) { 
-                    connection.Open();
-                   
+                   connection.Open();
+                   string sql = "EXEC CW2.InsertProfile "+profileid+", 6, @ProfileName,@Bio,@Location, 0,0\r\nEXEC CW2.InsertFavouriteActivity @ActivityID, "+profileid+";";
+                    using(var command = new SqlCommand(sql, connection)) { 
+                        command.Parameters.AddWithValue("@ProfileName",profileDTO.ProfileName);
+                        command.Parameters.AddWithValue("@Bio",profileDTO.Bio);
+                        command.Parameters.AddWithValue("@Location",profileDTO.Location);
+                        command.Parameters.AddWithValue("@ActivityID",profileDTO.FavouriteActivity);
+                        command.ExecuteNonQuery();
+                    }
                 }
             }
             catch (Exception ex){ 
                 ModelState.AddModelError("Profiles","Sorry, this is not available right now");
                 return BadRequest(ModelState);
             }
-            return Ok(profiles);
+            return Ok();
         }
 
         // PUT api/<ProfilesController>/5
@@ -104,5 +111,23 @@ namespace WebApplication1.Controllers
         public void Delete(int id)
         {
         }
+
+        protected string getProfileId() { 
+            int count = 0;
+            using (var connection = new SqlConnection(connectionString)) { 
+                connection.Open();
+                string sql = "SELECT Profiles.ProfileID,Profiles.ProfileName,Profiles.Bio,Profiles.[Location],Activities.ActivityName FROM CW2.[Users] JOIN CW2.[Profiles] ON Users.UserID = Profiles.UserID JOIN CW2.[FavouriteActivities] ON Profiles.ProfileID = FavouriteActivities.ProfileID JOIN CW2.[Activities] ON FavouriteActivities.ActivityID = Activities.ActivityID WHERE Profiles.IsArchived = 0 ORDER by ProfileID;";
+                using (var command = new SqlCommand(sql, connection)) { 
+                    using (var reader = command.ExecuteReader()) {
+                        while (reader.Read()) { 
+                            count++;      
+                        }            
+                    }
+                }
+            }
+            count = count+1;
+            return count.ToString();
+        }
+         
     }
 }
