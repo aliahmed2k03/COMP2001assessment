@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using WebApplication1.Models;
 
@@ -44,6 +45,8 @@ namespace WebApplication1.Controllers
             }
             return Ok(profiles);
         }
+
+       
 
         // GET api/<ProfilesController>/5
         [HttpGet("{id}")]
