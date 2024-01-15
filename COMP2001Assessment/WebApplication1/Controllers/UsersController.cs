@@ -1,5 +1,9 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
+using Microsoft.IdentityModel.Tokens;
+using System.Data;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Security.Cryptography;
 using WebApplication1.Models;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
@@ -13,26 +17,30 @@ namespace WebApplication1.Controllers
     public class UsersController : ControllerBase
     {
         private readonly string connectionString;
+        private readonly IConfiguration _configuration;
+        
         public UsersController(IConfiguration configuration) { 
             connectionString = configuration["ConnectionStrings:SqlServerDb"]?? "";
+            _configuration = configuration;
         }
-        public static Models.Users user = new Models.Users();
-
+        
+        
         // POST api/<UsersController>
         [HttpPost("Register")]
         public IActionResult registerUser(Models.UsersDTO usersdto)
         {
-            CreatePasswordHash(usersdto.Password, out byte[] passwordHash, out byte[] passwordSalt);
+            CreateSalt(out string passwordSalt);
+            string passwordHash =CreatePasswordHash(usersdto.Password,passwordSalt);
+            string userId = getUserId();
             try { 
                 using (var connection = new SqlConnection(connectionString)) {
                     connection.Open();
-                    string sql = "EXEC CW2.InsertUser "+getUserId()+",@Username,@Email,@UserPassword,0;";
+                    string sql = "EXEC CW2.InsertUser "+userId+",@Username,@Email,@UserPassword,0,@passwordSalt;";
                     using(var command = new SqlCommand(sql, connection)) { 
                         command.Parameters.AddWithValue("@Username",usersdto.Username);
                         command.Parameters.AddWithValue("@Email",usersdto.Email);
                         command.Parameters.AddWithValue("@UserPassword",passwordHash);
-
-
+                        command.Parameters.AddWithValue("@passwordSalt",passwordSalt);
                         command.ExecuteNonQuery();
                     }
                 }
@@ -41,40 +49,46 @@ namespace WebApplication1.Controllers
                 ModelState.AddModelError("Users","Sorry, this is not available right now");
                 return BadRequest(ModelState);
             }
-            user.Username = usersdto.Username;
-            user.Email = usersdto.Email;
-            user.PasswordHash=passwordHash;
-            return Ok(user);
+            Users.Id = userId;
+            Users.Username = usersdto.Username;
+            Users.Email = usersdto.Email;
+            Users.PasswordHash=passwordHash;
+            Users.PasswordSalt=passwordSalt;
+            Users.isAdmin = false;
+            Users.authenticated = false;
+            return Ok("username:"+Users.Username+"\nEmail: "+Users.Email+"\nPasswordHash: "+Users.PasswordHash+"\nPasswordSalt: "+Users.PasswordSalt+"\nIsAdmin:"+Users.isAdmin);
 
         }
 
         [HttpPost("Login")]
         public IActionResult loginUser(Models.UsersDTO usersdto)
         {
+            string passwordSalt = null;
             try { 
                 using (var connection = new SqlConnection(connectionString)) { 
                     connection.Open();
-                    string sql = "SELECT Username, Email, UserPassword FROM CW2.Users WHERE Username = @Username AND Email = @Email;";
+                    string sql  = "SELECT * FROM CW2.Users;";
                     using (var command = new SqlCommand(sql, connection))
                     {
+                        SqlDataAdapter adapter = new SqlDataAdapter(command);
+                        DataTable dataTable = new DataTable();
+                        adapter.Fill(dataTable);
                         
-                        command.Parameters.AddWithValue("@Username",usersdto.Username);
-                        command.Parameters.AddWithValue("@Email",usersdto.Email);
-                        using (var reader = command.ExecuteReader())
-                        {
-
-                            while (reader.Read())
-                            {
+                        foreach(DataRow row in dataTable.Rows)
+                        {                                            
+                            
+                            if (row["Username"].ToString() == usersdto.Username && row["Email"].ToString() == usersdto.Email) {
+                                passwordSalt = row["PasswordSalt"].ToString();
                                 
-                                string dbUsername = reader["Username"].ToString();
-                                
-                                string dbPassword = reader["UserPassword"].ToString();
-                                
-                                string dbEmail = reader["Email"].ToString();
-                                return Ok(dbUsername);
-                                if (dbUsername == usersdto.Username && dbEmail == usersdto.Email)
-                                {
-                                    return Ok("You have logged in succesfully");
+                                if (row["UserPassword"].ToString() == CreatePasswordHash(usersdto.Password, passwordSalt)) { 
+                                    Users.Id = row["UserID"].ToString();
+                                    Users.Username = usersdto.Username;   
+                                    Users.Email = usersdto.Email;
+                                    Users.PasswordHash= CreatePasswordHash(usersdto.Password, passwordSalt);
+                                    Users.PasswordSalt=passwordSalt;   
+                                    Users.authenticated = true;
+                                    return Ok("You have logged in succesfully, UserID: "+Users.Id);
+                                          
                                 }
                             }
                         }
@@ -86,25 +100,24 @@ namespace WebApplication1.Controllers
                 ModelState.AddModelError("Users","Sorry, this is not available right now");
                 return BadRequest(ModelState);
             }
-            return Ok("Your username, Email or password is incorrect");
+            return Ok("Your username,email or password is incorrect");
            
         }
             
-    
-
-        private void CreatePasswordHash(string password, out byte[] passwordHash, out byte[] passwordsalt) { 
-            using (var hmac = new HMACSHA512()) { 
-                passwordsalt = hmac.Key;
-                passwordHash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password));
+        private string CreatePasswordHash(string password, string passwordSalt ) { 
+            using (var hmac = new HMACSHA512(System.Text.Encoding.UTF8.GetBytes(passwordSalt))) { 
+                byte[] hash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password));
+                return Convert.ToBase64String(hash);
             }
         }
-        private bool VerifyPassword(string password, byte[] dbpassword) {
-            
-            using (var hmac = new HMACSHA512()) { 
-                var hashedpass = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password));
-                return hashedpass.SequenceEqual(dbpassword);
-            }
-        }
+        
+        private void CreateSalt(out string passwordSalt) { 
+            using (var hmac = new HMACSHA512())
+            {
+                byte[] salt = hmac.Key;
+                passwordSalt = Convert.ToBase64String(salt);
+            }    
+        } 
         protected string getUserId() { 
             int count = 0;
             using (var connection = new SqlConnection(connectionString)) { 
@@ -121,5 +134,24 @@ namespace WebApplication1.Controllers
             count = count+1;
             return count.ToString();
         }
+
+        private string CreateJWTtoken(Models.Users user) { 
+            List<Claim> claims = new List<Claim> { 
+                new Claim("Id",Users.Id),
+                new Claim("Username",Users.Username),
+                new Claim("Email", Users.Email)
+                };
+
+            var key = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(_configuration.GetSection("AppSettings:Token").Value));
+            var cred = new SigningCredentials(key,SecurityAlgorithms.HmacSha512Signature);
+            var token = new JwtSecurityToken(
+                claims: claims,
+                expires: DateTime.Now.AddDays(1),
+                signingCredentials: cred);
+            var jwt = new JwtSecurityTokenHandler().WriteToken(token);
+            return jwt;
+
+        }
+        
     }
 }

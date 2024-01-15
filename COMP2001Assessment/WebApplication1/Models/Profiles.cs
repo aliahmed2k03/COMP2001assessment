@@ -3,6 +3,7 @@
     public class Profiles
     {
         public int ProfileId { get; set; }
+        public int UserId { get; set; }
         public string ProfileName { get; set; } ="";
         public string Bio {get; set; } = "";
         public string Location { get; set; } = "";

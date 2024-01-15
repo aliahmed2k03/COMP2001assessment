@@ -69,3 +69,8 @@ D:\projects\COMP2001assessment\COMP2001Assessment\WebApplication1\obj\Debug\net8
 D:\projects\COMP2001assessment\COMP2001Assessment\WebApplication1\obj\Debug\net8.0\WebApplication1.pdb
 D:\projects\COMP2001assessment\COMP2001Assessment\WebApplication1\obj\Debug\net8.0\WebApplication1.genruntimeconfig.cache
 D:\projects\COMP2001assessment\COMP2001Assessment\WebApplication1\obj\Debug\net8.0\ref\WebApplication1.dll
+D:\projects\COMP2001assessment\COMP2001Assessment\WebApplication1\bin\Debug\net8.0\Microsoft.AspNetCore.Authentication.JwtBearer.dll
+D:\projects\COMP2001assessment\COMP2001Assessment\WebApplication1\bin\Debug\net8.0\Microsoft.Extensions.DependencyModel.dll
+D:\projects\COMP2001assessment\COMP2001Assessment\WebApplication1\bin\Debug\net8.0\Scrutor.dll
+D:\projects\COMP2001assessment\COMP2001Assessment\WebApplication1\bin\Debug\net8.0\Swashbuckle.AspNetCore.Filters.dll
+D:\projects\COMP2001assessment\COMP2001Assessment\WebApplication1\bin\Debug\net8.0\Swashbuckle.AspNetCore.Filters.Abstractions.dll
