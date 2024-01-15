@@ -173,7 +173,7 @@ namespace WebApplication1.Controllers
                     ModelState.AddModelError("Profiles","Sorry, this is not available right now");
                     return BadRequest(ModelState);
                 }
-                return Ok();
+                return Ok("Your profile will be deleted eventually by an admin");
             }
             else
                 return BadRequest("You are not authenticated. Log in to your account");
@@ -182,7 +182,7 @@ namespace WebApplication1.Controllers
         public IActionResult ArchiveProfiles()
         {
             try {
-                if (Users.isAdmin) { 
+                if (Users.isAdmin == 1) { 
                     using (var connection = new SqlConnection(connectionString)) { 
                         connection.Open();
                         string sql = "EXEC CW2.ArchiveProfiles;";

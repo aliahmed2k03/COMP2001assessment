@@ -1,10 +1,15 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Azure.Identity;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.IdentityModel.Tokens;
 using System.Data;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using WebApplication1.Models;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 
@@ -22,6 +27,7 @@ namespace WebApplication1.Controllers
         public UsersController(IConfiguration configuration) { 
             connectionString = configuration["ConnectionStrings:SqlServerDb"]?? "";
             _configuration = configuration;
+
         }
         
         
@@ -54,16 +60,17 @@ namespace WebApplication1.Controllers
             Users.Email = usersdto.Email;
             Users.PasswordHash=passwordHash;
             Users.PasswordSalt=passwordSalt;
-            Users.isAdmin = false;
+            Users.isAdmin = 0;
             Users.authenticated = false;
             return Ok("username:"+Users.Username+"\nEmail: "+Users.Email+"\nPasswordHash: "+Users.PasswordHash+"\nPasswordSalt: "+Users.PasswordSalt+"\nIsAdmin:"+Users.isAdmin);
 
         }
 
         [HttpPost("Login")]
-        public IActionResult loginUser(Models.UsersDTO usersdto)
+        public async Task<IActionResult> loginUser(Models.UsersDTO usersdto)
         {
             string passwordSalt = null;
+            string authenticated = null;
             try { 
                 using (var connection = new SqlConnection(connectionString)) { 
                     connection.Open();
@@ -85,9 +92,11 @@ namespace WebApplication1.Controllers
                                     Users.Username = usersdto.Username;   
                                     Users.Email = usersdto.Email;
                                     Users.PasswordHash= CreatePasswordHash(usersdto.Password, passwordSalt);
-                                    Users.PasswordSalt=passwordSalt;   
+                                    Users.PasswordSalt=passwordSalt;
+                                    Users.isAdmin = Convert.ToInt32(row["IsAdmin"]);
                                     Users.authenticated = true;
-                                    return Ok("You have logged in succesfully, UserID: "+Users.Id);
+                                    authenticated = await Authenticator(usersdto.Email,usersdto.Password);
+                                    return Ok("You have logged in succesfully, UserID: "+Users.Id+"\nAuthentication API Response: "+ authenticated);
                                           
                                 }
                             }
@@ -152,6 +161,21 @@ namespace WebApplication1.Controllers
             return jwt;
 
         }
+        public static async Task<string> Authenticator(string email, string password) { 
+            string url = "https://web.socem.plymouth.ac.uk/COMP2001/auth/api/users";
+            var requestdata = new {Email = email, Password = password};
+            string jsondata = Newtonsoft.Json.JsonConvert.SerializeObject(requestdata);
+            using var client = new HttpClient();
+            using var request = new HttpRequestMessage(HttpMethod.Post, url);
+            request.Content = new StringContent(jsondata,Encoding.UTF8, "application/json");
+            using var response = await client.SendAsync(request);
+            if (response.IsSuccessStatusCode) { 
+                string responseBody = await response.Content.ReadAsStringAsync();
+                return responseBody;
+            }
+            else
+                return "Authentication failed";
+        }  
         
     }
 }
